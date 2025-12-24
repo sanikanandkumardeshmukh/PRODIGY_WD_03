@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tic Tac Toe - Applause Win!</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.celebration {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255,255,255,0.25), rgba(0,0,0,0.85));
+  display: none;
+  animation: glow 1s infinite alternate;
+  z-index: 1;
+}
+
+@keyframes glow {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+.game {
+  background: #111827;
+  padding: 25px;
+  border-radius: 16px;
+  width: 380px;
+  color: #fff;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+  z-index: 2;
+  text-align: center;
+}
+
+h1 { margin-bottom: 10px; }
+
+.controls {
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+button, select {
+  background: #4f46e5;
+  border: none;
+  color: white;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+  font-size: 12px;
+}
+
+button:hover, select:hover {
+  background: #6366f1;
+  transform: scale(1.05);
+}
+
+.status {
+  margin: 10px 0;
+  font-size: 1.2rem;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.cell {
+  height: 100px;
+  background: #1f2933;
+  border-radius: 12px;
+  font-size: 2.8rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: 0.2s;
+  user-select: none;
+}
+
+.cell:hover {
+  background: #374151;
+  transform: scale(1.05);
+}
+
+.cell.X { color: #22d3ee; animation: pop 0.2s; }
+.cell.O { color: #f97316; animation: pop 0.2s; }
+
+.cell.win {
+  background: #16a34a !important;
+  color: white !important;
+}
+
+@keyframes pop {
+  from { transform: scale(0.6); }
+  to { transform: scale(1); }
+}
+
+.audio-status {
+  font-size: 0.8rem;
+  color: #10b981;
+  margin-top: 5px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="celebration" id="celebration"></div>
+
+<div class="game">
+  <h1>🎮 Tic Tac Toe</h1>
+  <br>
+  
+  <div class="controls">
+    <button id="toggleAI">AI: OFF</button>
+    <select id="difficulty">
+      <option value="easy">Easy</option>
+      <option value="medium">Medium</option>
+      <option value="hard" selected>Hard</option>
+    </select>
+    <button onclick="resetGame()">Restart</button>
+  </div>
+
+  <div class="status" id="status"></div>
+  <div id="audioStatus" class="audio-status" style="display:none;"></div>
+
+  <div class="board">
+    <div class="cell" data-index="0"></div>
+    <div class="cell" data-index="1"></div>
+    <div class="cell" data-index="2"></div>
+    <div class="cell" data-index="3"></div>
+    <div class="cell" data-index="4"></div>
+    <div class="cell" data-index="5"></div>
+    <div class="cell" data-index="6"></div>
+    <div class="cell" data-index="7"></div>
+    <div class="cell" data-index="8"></div>
+  </div>
+</div>
+
+<script>
+const cells = document.querySelectorAll('.cell');
+const statusText = document.getElementById('status');
+const audioStatus = document.getElementById('audioStatus');
+const toggleAIButton = document.getElementById('toggleAI');
+const difficultySelect = document.getElementById('difficulty');
+const celebration = document.getElementById('celebration');
+
+let board = ["","","","","","","","",""];
+let currentPlayer = "X";
+let gameActive = true;
+let aiEnabled = false;
+let difficulty = "hard";
+let audioUnlocked = false;
+let audioContext = null;
+
+// 🎵 Web Audio API - 100% reliable
+function initAudio() {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+function playClickSound() {
+  initAudio();
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+  
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  
+  oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+  oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.1);
+  
+  gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+  
+  oscillator.start(audioContext.currentTime);
+  oscillator.stop(audioContext.currentTime + 0.1);
+}
+
+// 👏 APPLAUSE SOUND - Multiple hand claps!
+function playApplauseSound() {
+  initAudio();
+  
+  // Clap 1
+  setTimeout(() => playSingleClap(0.8), 0);
+  // Clap 2  
+  setTimeout(() => playSingleClap(0.7), 120);
+  // Clap 3
+  setTimeout(() => playSingleClap(0.75), 240);
+  // Clap 4
+  setTimeout(() => playSingleClap(0.65), 360);
+}
+
+function playSingleClap(volume) {
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+  
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  
+  // Clap sound: sharp attack + quick decay
+  oscillator.frequency.setValueAtTime(1200, audioContext.currentTime);
+  oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.03);
+  
+  gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.08);
+  
+  oscillator.start(audioContext.currentTime);
+  oscillator.stop(audioContext.currentTime + 0.1);
+}
+
+function playDrawSound() {
+  initAudio();
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+  
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  
+  oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+  oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.2);
+  
+  gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+  
+  oscillator.start(audioContext.currentTime);
+  oscillator.stop(audioContext.currentTime + 0.2);
+}
+
+// 🔓 Unlock everything on first click
+document.addEventListener('click', unlockEverything, { once: true });
+document.addEventListener('touchstart', unlockEverything, { once: true });
+
+function unlockEverything(e) {
+  if (!audioUnlocked) {
+    initAudio();
+    audioUnlocked = true;
+    statusText.textContent = "Player X's turn";
+    audioStatus.style.display = "block";
+    
+    // Play unlock sound
+    playClickSound();
+  }
+  
+  // Handle cell click if it's a cell
+  if (e.target.classList.contains('cell')) {
+    handleClick(e);
+  }
+}
+
+const winConditions = [
+  [0,1,2],[3,4,5],[6,7,8],
+  [0,3,6],[1,4,7],[2,5,8],
+  [0,4,8],[2,4,6]
+];
+
+cells.forEach(cell => {
+  cell.addEventListener('click', handleClick);
+});
+
+toggleAIButton.addEventListener('click', toggleAI);
+difficultySelect.addEventListener('change', e => {
+  difficulty = e.target.value;
+  resetGame();
+});
+
+function handleClick(e) {
+  const i = e.target.dataset.index;
+  if (board[i] || !gameActive) return;
+
+  makeMove(i, currentPlayer);
+
+  if (aiEnabled && gameActive && currentPlayer === "O") {
+    setTimeout(aiMove, 300);
+  }
+}
+
+function makeMove(index, player) {
+  board[index] = player;
+  cells[index].textContent = player;
+  cells[index].classList.add(player);
+
+  playClickSound();
+  checkGame();
+}
+
+function checkGame() {
+  for (let combo of winConditions) {
+    if (combo.every(i => board[i] === currentPlayer)) {
+      combo.forEach(i => cells[i].classList.add("win"));
+      statusText.textContent = `${currentPlayer} wins! 🎉`;
+      celebration.style.display = "block";
+      playApplauseSound(); // 👏 APPLAUSE!
+      gameActive = false;
+      return;
+    }
+  }
+
+  if (!board.includes("")) {
+    statusText.textContent = "It's a draw 🤝";
+    playDrawSound();
+    gameActive = false;
+    return;
+  }
+
+  currentPlayer = currentPlayer === "X" ? "O" : "X";
+  statusText.textContent = `Player ${currentPlayer}'s turn`;
+}
+
+function aiMove() {
+  let move;
+  if (difficulty === "easy") move = randomMove();
+  else if (difficulty === "medium") move = Math.random() < 0.5 ? randomMove() : minimax(board, "O").index;
+  else move = minimax(board, "O").index;
+
+  makeMove(move, "O");
+}
+
+function randomMove() {
+  const empty = board.map((v,i) => v === "" ? i : null).filter(v => v !== null);
+  return empty[Math.floor(Math.random() * empty.length)];
+}
+
+function toggleAI() {
+  aiEnabled = !aiEnabled;
+  toggleAIButton.textContent = aiEnabled ? "AI: ON" : "AI: OFF";
+  resetGame();
+}
+
+function resetGame() {
+  board = ["","","","","","","","",""];
+  currentPlayer = "X";
+  gameActive = true;
+  celebration.style.display = "none";
+  if (audioUnlocked) {
+    statusText.textContent = "Player X's turn";
+  }
+  cells.forEach(c => {
+    c.textContent = "";
+    c.className = "cell";
+  });
+}
+
+function minimax(newBoard, player) {
+  const empty = newBoard.map((v,i) => v === "" ? i : null).filter(v => v !== null);
+
+  if (checkWinner(newBoard, "X")) return { score: -10 };
+  if (checkWinner(newBoard, "O")) return { score: 10 };
+  if (empty.length === 0) return { score: 0 };
+
+  let moves = [];
+  for (let i of empty) {
+    let move = { index: i };
+    newBoard[i] = player;
+    move.score = minimax(newBoard, player === "O" ? "X" : "O").score;
+    newBoard[i] = "";
+    moves.push(move);
+  }
+
+  return player === "O"
+    ? moves.reduce((a,b) => a.score > b.score ? a : b)
+    : moves.reduce((a,b) => a.score < b.score ? a : b);
+}
+
+function checkWinner(b, p) {
+  return winConditions.some(c => c.every(i => b[i] === p));
+}
+</script>
+
+</body>
+</html>
